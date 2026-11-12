@@ -106,7 +106,7 @@ impl<S: 'static> Runtime<S> {
     pub(crate) fn cancel_pointer(&mut self) {
         self.cancel_drag();
         self.drop_drag_out_request();
-        self.text_sel.dragging = false;
+        self.select_step(selectable::phase::Event::Release);
         self.input_click.clear();
         self.press.drop_held();
         self.secondary = capture::Secondary::Up;
@@ -133,7 +133,7 @@ impl<S: 'static> Runtime<S> {
         let d = Drag { phase: Phase::Up, x: lx, y: ly, dx, dy, cancelled: true, window: [x, y], screen, ..held.drag };
         self.queue.push(Action::Drag(held.path, d, held.button));
         self.end_press_repeat();
-        self.text_sel.dragging = false;
+        self.select_step(selectable::phase::Event::Release);
         true
     }
 
@@ -215,7 +215,7 @@ impl<S: 'static> Runtime<S> {
         self.press_selection(target, x, y);
         // Inside a draggable row, dragging drags the row; clicks still select words and lines.
         if target.is_some_and(|t| self.nodes[t].handlers.on_drag.is_some() || self.nodes[t].handlers.drag_out.is_some()) {
-            self.text_sel.dragging = false;
+            self.select_step(selectable::phase::Event::Release);
         }
         let Some(ti) = target else {
             let now = self.now_clock();
@@ -361,7 +361,7 @@ impl<S: 'static> Runtime<S> {
         self.move_pointer(x, y, moved);
         // A drag that selected text is a selection, not a press.
         let selected = self.selected_by_drag();
-        self.text_sel.dragging = false;
+        self.select_step(selectable::phase::Event::Release);
         let input_capture = self.input_click.end_press();
         self.end_press_repeat();
         let now = self.now_clock();
@@ -426,7 +426,7 @@ impl<S: 'static> Runtime<S> {
         // An element on its way out has no cursor: `Cursor::Hidden` ends when it's removed.
         // Selectable text shows its I-beam even where its presses go to a row around it.
         let target = match self.press.path() {
-            Some(_) if self.text_sel.dragging => self.selection_holder(),
+            Some(_) if self.selectable.phase.dragging() => self.selection_holder(),
             Some(p) => self.live_index(p).filter(|&i| self.allowed(i)),
             // Moving layout holds hover: the cursor stays with what the pointer was over.
             None => self.held_hover().flatten().or_else(|| self.selectable_at(x, y).or_else(|| self.primary_target(x, y))),
@@ -437,7 +437,7 @@ impl<S: 'static> Runtime<S> {
         if self.nodes[i].handlers.cursor.is_none() && (self.nodes[i].input.is_some() || self.nodes[i].role == "textbox") {
             return crate::el::Cursor::Text;
         }
-        if self.is_selectable(i) && !self.text_sel.dragging && self.link_at(i, x, y).is_some() {
+        if self.is_selectable(i) && !self.selectable.phase.dragging() && self.link_at(i, x, y).is_some() {
             return crate::el::Cursor::Pointer;
         }
         loop {

@@ -118,6 +118,14 @@ impl WindowHandle {
         let handle = window.window_handle().map_err(|e| e.to_string())?;
         Ok(f(handle))
     }
+    /// Borrow the display's native handle while alive. Platform thread restrictions still
+    /// apply; a protocol object made for the window's surface belongs on this display.
+    pub fn with_display_handle<R>(&self, f: impl for<'a> FnOnce(winit::raw_window_handle::DisplayHandle<'a>) -> R) -> Result<R, String> {
+        use winit::raw_window_handle::HasDisplayHandle;
+        let window = self.window()?;
+        let handle = window.display_handle().map_err(|e| e.to_string())?;
+        Ok(f(handle))
+    }
 }
 
 #[cfg(target_os = "macos")]
